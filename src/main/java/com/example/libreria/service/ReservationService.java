@@ -86,6 +86,7 @@ public class ReservationService {
         
         LocalDate returnDate = returnRequest.getReturnDate();
         reservation.setActualReturnDate(returnDate);
+        BigDecimal totalFee = calculateTotalFee(reservation.getDailyRate(), reservation.getRentalDays());
         
         // Calcular tarifa por demora si hay retraso
         if (reservation.getActualReturnDate().isAfter(reservation.getExpectedReturnDate())) {
@@ -93,15 +94,11 @@ public class ReservationService {
                     reservation.getExpectedReturnDate(),
                     reservation.getActualReturnDate()
             );
-
-            BigDecimal lateFee = reservation.getBook().getPrice()
-                    .multiply(LATE_FEE_PERCENTAGE)
-                    .multiply(BigDecimal.valueOf(daysLate));
-
-            reservation.setTotalFee(lateFee);
-            log.info("Se aplicó multa por retraso de {} días: ${}", daysLate, lateFee);
+            reservation.setLateFee(calculateLateFee(reservation.getBook().getPrice(), daysLate));
+            log.info("Se aplicó multa por retraso de {} días: ${}", daysLate, reservation.getLateFee());
         }
 
+        reservation.setTotalFee(totalFee.add(reservation.getLateFee()));
         reservation.setStatus(Reservation.ReservationStatus.RETURNED);
         
         // Aumentar la cantidad disponible
@@ -152,12 +149,13 @@ public class ReservationService {
     
     private BigDecimal calculateTotalFee(BigDecimal dailyRate, Integer rentalDays) {
         // TODO: Implementar el cálculo del total de la reserva
+        return dailyRate.multiply(BigDecimal.valueOf(rentalDays));
     }
     
     private BigDecimal calculateLateFee(BigDecimal bookPrice, long daysLate) {
         // 15% del precio del libro por cada día de demora
         // TODO: Implementar el cálculo de la multa por demora
-        return bookPrice.multiply(BigDecimal.valueOf(daysLate));
+        return bookPrice.multiply(LATE_FEE_PERCENTAGE).multiply(BigDecimal.valueOf(daysLate));
     }
     
     private ReservationResponseDTO convertToDTO(Reservation reservation) {
